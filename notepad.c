@@ -6,6 +6,7 @@
 #include <commdlg.h>
 #include <dwmapi.h>
 #include <string.h>
+#include <strsafe.h>
 
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
@@ -60,13 +61,13 @@ wchar_t replaceWith[128] = L"";
 void UpdateTitle() {
     wchar_t title[MAX_PATH + 32];
     const wchar_t* name = (currentFile[0] != L'\0') ? currentFile : L"Untitled";
-    wsprintfW(title, L"%s%s - SimpleNote", isModified ? L"*" : L"", name);
+    StringCchPrintfW(title, ARRAYSIZE(title), L"%s%s - SimpleNote", isModified ? L"*" : L"", name);
     SetWindowTextW(hMainWnd, title);
 }
 
 void UpdateStatus() {
     wchar_t buf[64];
-    wsprintfW(buf, L"%d characters", GetWindowTextLengthW(hEdit));
+    StringCchPrintfW(buf, ARRAYSIZE(buf), L"%d characters", GetWindowTextLengthW(hEdit));
     SetWindowTextW(hStatus, buf);
 }
 
@@ -92,7 +93,8 @@ void LoadSettings(RECT* windowRect, BOOL* hasWindowRect) {
     if (bgColorCustom && RegGetValueW(HKEY_CURRENT_USER, REG_KEY, L"BgColor", RRF_RT_REG_DWORD, NULL, &v, &size) == ERROR_SUCCESS) bgColor = (COLORREF)v;
 
     DWORD rectSize = sizeof(RECT);
-    *hasWindowRect = (RegGetValueW(HKEY_CURRENT_USER, REG_KEY, L"WindowRect", RRF_RT_REG_BINARY, NULL, windowRect, &rectSize) == ERROR_SUCCESS);
+    *hasWindowRect = (RegGetValueW(HKEY_CURRENT_USER, REG_KEY, L"WindowRect", RRF_RT_REG_BINARY, NULL, windowRect, &rectSize) == ERROR_SUCCESS)
+        && (rectSize == sizeof(RECT));
 }
 
 void SaveSettings() {
@@ -166,14 +168,26 @@ void SaveToFile(const wchar_t* path) {
     HANDLE hFile = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile != INVALID_HANDLE_VALUE) {
         int utf8Len = WideCharToMultiByte(CP_UTF8, 0, buffer, -1, NULL, 0, NULL, NULL);
-        char* utf8Buf = (char*)malloc(utf8Len);
+        if (utf8Len <= 0) {
+            CloseHandle(hFile);
+            free(buffer);
+            MessageBoxW(hMainWnd, L"Could not encode text.", L"Error", MB_ICONERROR);
+            return;
+        }
+        char* utf8Buf = (char*)malloc((size_t)utf8Len);
         if (!utf8Buf) { CloseHandle(hFile); free(buffer); MessageBoxW(hMainWnd, L"Out of memory.", L"Error", MB_ICONERROR); return; }
         WideCharToMultiByte(CP_UTF8, 0, buffer, -1, utf8Buf, utf8Len, NULL, NULL);
 
         DWORD written;
-        WriteFile(hFile, utf8Buf, utf8Len - 1, &written, NULL);
+        BOOL writeOk = WriteFile(hFile, utf8Buf, (DWORD)(utf8Len - 1), &written, NULL);
         CloseHandle(hFile);
         free(utf8Buf);
+
+        if (!writeOk) {
+            MessageBoxW(hMainWnd, L"Could not save file.", L"Error", MB_ICONERROR);
+            free(buffer);
+            return;
+        }
 
         wcscpy_s(currentFile, MAX_PATH, path);
         isModified = FALSE;
@@ -222,10 +236,15 @@ void LoadFile(const wchar_t* path) {
             MessageBoxW(hMainWnd, L"Out of memory.", L"Error", MB_ICONERROR);
             return;
         }
-        DWORD readBytes;
-        ReadFile(hFile, utf8Buf, size, &readBytes, NULL);
-        utf8Buf[readBytes] = '\0';
+        DWORD readBytes = 0;
+        BOOL readOk = ReadFile(hFile, utf8Buf, size, &readBytes, NULL);
         CloseHandle(hFile);
+        if (!readOk || readBytes > size) {
+            free(utf8Buf);
+            MessageBoxW(hMainWnd, L"Could not read file.", L"Error", MB_ICONERROR);
+            return;
+        }
+        utf8Buf[readBytes] = '\0';
 
         // Skip a UTF-8 BOM if present so it doesn't show up as a stray character.
         char* utf8Start = utf8Buf;
@@ -235,7 +254,12 @@ void LoadFile(const wchar_t* path) {
         }
 
         int wideLen = MultiByteToWideChar(CP_UTF8, 0, utf8Start, -1, NULL, 0);
-        wchar_t* wideBuf = (wchar_t*)malloc(wideLen * sizeof(wchar_t));
+        if (wideLen <= 0) {
+            free(utf8Buf);
+            MessageBoxW(hMainWnd, L"Could not decode file.", L"Error", MB_ICONERROR);
+            return;
+        }
+        wchar_t* wideBuf = (wchar_t*)malloc((size_t)wideLen * sizeof(wchar_t));
         if (!wideBuf) {
             free(utf8Buf);
             MessageBoxW(hMainWnd, L"Out of memory.", L"Error", MB_ICONERROR);
@@ -419,7 +443,7 @@ void DoReplaceAll(BOOL matchCase) {
         count++;
     }
     wchar_t msg[64];
-    wsprintfW(msg, L"%d replacement(s) made.", count);
+    StringCchPrintfW(msg, ARRAYSIZE(msg), L"%d replacement(s) made.", count);
     MessageBoxW(hMainWnd, msg, L"Replace All", MB_OK | MB_ICONINFORMATION);
 }
 
@@ -576,8 +600,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     wc.hIconSm = wc.hIcon;
 
     RegisterClassExW(&wc);
+    findMsgId = RegisterWindowMessageA(FINDMSGSTRING);
 
-    RECT savedRect;
+    RECT savedRect = { 0 };
     BOOL hasSavedRect;
     LoadSettings(&savedRect, &hasSavedRect);
 
@@ -599,7 +624,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
         NULL, NULL, hInstance, NULL);
 
     HACCEL hAccel = LoadAcceleratorsW(hInstance, MAKEINTRESOURCEW(2));
-    findMsgId = RegisterWindowMessageA(FINDMSGSTRING);
 
     ShowWindow(hMainWnd, nCmdShow);
 
