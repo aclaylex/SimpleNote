@@ -1,0 +1,77 @@
+// notepad.rc
+// Defines the menu bar (resource 1) and keyboard accelerators (resource 2).
+
+#define IDM_NEW        101
+#define IDM_OPEN       102
+#define IDM_SAVE       103
+#define IDM_SAVEAS     104
+#define IDM_EXIT       105
+#define IDM_UNDO       201
+#define IDM_CUT        202
+#define IDM_COPY       203
+#define IDM_PASTE      204
+#define IDM_SELECTALL  205
+#define IDM_FIND       206
+#define IDM_REPLACE    207
+#define IDM_FINDNEXT   208
+#define IDM_DELWORDBACK 209
+#define IDM_DELWORDFWD  210
+#define IDM_REDO        211
+#define IDM_WORDWRAP   301
+#define IDM_BGCOLOR    302
+#define IDM_CHARCOUNT  303
+
+MAINICON ICON "icon.ico"
+
+1 MENU
+{
+    POPUP "&File"
+    {
+        MENUITEM "&New\tCtrl+N",       IDM_NEW
+        MENUITEM "&Open...\tCtrl+O",   IDM_OPEN
+        MENUITEM "&Save\tCtrl+S",      IDM_SAVE
+        MENUITEM "Save &As...\tCtrl+Shift+S", IDM_SAVEAS
+        MENUITEM SEPARATOR
+        MENUITEM "E&xit",              IDM_EXIT
+    }
+    POPUP "&Edit"
+    {
+        MENUITEM "&Undo\tCtrl+Z",      IDM_UNDO
+        MENUITEM "&Redo\tCtrl+Y",      IDM_REDO
+        MENUITEM SEPARATOR
+        MENUITEM "Cu&t\tCtrl+X",       IDM_CUT
+        MENUITEM "&Copy\tCtrl+C",      IDM_COPY
+        MENUITEM "&Paste\tCtrl+V",     IDM_PASTE
+        MENUITEM SEPARATOR
+        MENUITEM "Select &All\tCtrl+A", IDM_SELECTALL
+        MENUITEM SEPARATOR
+        MENUITEM "&Find...\tCtrl+F",    IDM_FIND
+        MENUITEM "Find &Next\tF3",      IDM_FINDNEXT
+        MENUITEM "&Replace...\tCtrl+H", IDM_REPLACE
+    }
+    POPUP "&View"
+    {
+        MENUITEM "&Word Wrap",              IDM_WORDWRAP
+        MENUITEM "&Background Color...",    IDM_BGCOLOR
+        MENUITEM "&Character Count", IDM_CHARCOUNT
+    }
+}
+
+2 ACCELERATORS
+{
+    "N", IDM_NEW,       VIRTKEY, CONTROL
+    "O", IDM_OPEN,      VIRTKEY, CONTROL
+    "S", IDM_SAVE,      VIRTKEY, CONTROL
+    "S", IDM_SAVEAS,    VIRTKEY, CONTROL, SHIFT
+    "Z", IDM_UNDO,      VIRTKEY, CONTROL
+    "Y", IDM_REDO,      VIRTKEY, CONTROL
+    "X", IDM_CUT,       VIRTKEY, CONTROL
+    "C", IDM_COPY,      VIRTKEY, CONTROL
+    "V", IDM_PASTE,     VIRTKEY, CONTROL
+    "A", IDM_SELECTALL, VIRTKEY, CONTROL
+    "F", IDM_FIND,      VIRTKEY, CONTROL
+    "H", IDM_REPLACE,   VIRTKEY, CONTROL
+    0x72, IDM_FINDNEXT, VIRTKEY
+    0x08, IDM_DELWORDBACK, VIRTKEY, CONTROL
+    0x2E, IDM_DELWORDFWD,  VIRTKEY, CONTROL
+}
